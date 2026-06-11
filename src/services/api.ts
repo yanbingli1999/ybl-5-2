@@ -3,6 +3,7 @@ import type {
   ExperimentConfig,
   TemperatureSnapshot,
   ExperimentResult,
+  ExperimentTemplate,
 } from '@shared/types';
 
 interface ApiResponse<T> {
@@ -13,7 +14,7 @@ interface ApiResponse<T> {
 
 const API_BASE = '/api';
 
-async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
+async function request<T, E = unknown>(url: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE}${url}`, {
     headers: {
       'Content-Type': 'application/json',
@@ -21,13 +22,13 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
     ...options,
   });
 
-  const result = (await response.json()) as ApiResponse<T>;
+  const result = (await response.json()) as ApiResponse<T> & { error?: string; data?: E };
 
-  if (!result.success) {
+  if (!result.success && result.error !== 'NAME_CONFLICT') {
     throw new Error(result.error || 'Request failed');
   }
 
-  return result.data as T;
+  return (result.data as T) || (result as unknown as T);
 }
 
 export const materialsApi = {
@@ -95,11 +96,70 @@ export const favoritesApi = {
     }),
 };
 
+export interface CheckNameResult {
+  exists: boolean;
+  template: ExperimentTemplate | null;
+}
+
+export interface CheckAndSaveResult {
+  existing?: ExperimentTemplate;
+}
+
+export type SaveMode = 'create' | 'overwrite' | 'rename';
+
+export const templatesApi = {
+  getAll: (category?: string, sortBy?: string, order?: 'asc' | 'desc') => {
+    const params = new URLSearchParams();
+    if (category) params.set('category', category);
+    if (sortBy) params.set('sortBy', sortBy);
+    if (order) params.set('order', order);
+    const query = params.toString();
+    return request<ExperimentTemplate[]>(`/templates${query ? '?' + query : ''}`);
+  },
+  get: (id: string) => request<ExperimentTemplate>(`/templates/${id}`),
+  checkName: (name: string) =>
+    request<CheckNameResult>(`/templates/check-name/${encodeURIComponent(name)}`),
+  checkAndSave: async (template: ExperimentTemplate, mode: SaveMode = 'create'): Promise<ExperimentTemplate | { existing: ExperimentTemplate; error: string }> => {
+    const response = await fetch(`${API_BASE}/templates/check-and-save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ template, mode }),
+    });
+    const result = await response.json();
+    if (!result.success) {
+      if (result.error === 'NAME_CONFLICT') {
+        return { existing: result.data.existing, error: 'NAME_CONFLICT' };
+      }
+      throw new Error(result.error || 'Request failed');
+    }
+    return result.data;
+  },
+  create: (template: ExperimentTemplate) =>
+    request<ExperimentTemplate>('/templates', {
+      method: 'POST',
+      body: JSON.stringify(template),
+    }),
+  update: (id: string, template: Partial<ExperimentTemplate>) =>
+    request<ExperimentTemplate>(`/templates/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(template),
+    }),
+  recordUse: (id: string) =>
+    request<ExperimentTemplate>(`/templates/${id}/use`, {
+      method: 'POST',
+    }),
+  delete: (id: string) =>
+    request<void>(`/templates/${id}`, {
+      method: 'DELETE',
+    }),
+};
+
 export const api = {
   materials: materialsApi,
   experiments: experimentsApi,
   snapshots: snapshotsApi,
   favorites: favoritesApi,
+  templates: templatesApi,
 };
 
 export default api;

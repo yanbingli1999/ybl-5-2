@@ -56,3 +56,31 @@ export interface ExperimentResult {
 }
 
 export type SimulationMode = 'idle' | 'running' | 'paused' | 'finished';
+
+export const TEMPLATE_CATEGORIES = [
+  '基础实验',
+  '材料对比',
+  '边界效应',
+  '热源布局',
+  '工业应用',
+  '教学案例',
+  '自定义',
+] as const;
+
+export type TemplateCategory = typeof TEMPLATE_CATEGORIES[number];
+
+export interface ExperimentTemplate {
+  id: string;
+  name: string;
+  category: TemplateCategory;
+  description: string;
+  createdAt: number;
+  lastUsedAt: number;
+  useCount: number;
+  grid: GridConfig;
+  materialId: string;
+  boundaryConditions: BoundaryConditions;
+  initialHeatSources: HeatSource[];
+  defaultSteps: number;
+  timeStep: number;
+}

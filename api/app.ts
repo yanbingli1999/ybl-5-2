@@ -15,6 +15,7 @@ import materialRoutes from './routes/materials.js'
 import experimentRoutes from './routes/experiments.js'
 import snapshotRoutes from './routes/snapshots.js'
 import favoriteRoutes from './routes/favorites.js'
+import templateRoutes from './routes/templates.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -34,6 +35,7 @@ app.use('/api/materials', materialRoutes)
 app.use('/api/experiments', experimentRoutes)
 app.use('/api/snapshots', snapshotRoutes)
 app.use('/api/favorites', favoriteRoutes)
+app.use('/api/templates', templateRoutes)
 
 /**
  * health

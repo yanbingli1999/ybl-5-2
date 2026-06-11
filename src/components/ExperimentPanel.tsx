@@ -1,25 +1,32 @@
 import React, { useState } from 'react';
-import { FileText, Star, Trash2, Download, Clock } from 'lucide-react';
+import { FileText, Star, Trash2, Download, Clock, Library } from 'lucide-react';
 import useSimulationStore from '../store/useSimulationStore';
 import api from '../services/api';
-import type { ExperimentConfig, ExperimentResult } from '@shared/types';
+import type { ExperimentConfig, ExperimentResult, ExperimentTemplate } from '@shared/types';
 
 export const ExperimentPanel: React.FC = () => {
   const {
     experiments,
     favorites,
+    templates,
     setExperiments,
     setFavorites,
+    removeTemplate,
+    updateTemplate,
     setGrid,
     setBoundaryConditions,
     setMaterialId,
     setInitialHeatSources,
     setTotalSteps,
+    setTimeStep,
     setCurrentExperimentId,
+    setShowSaveTemplateModal,
+    setShowTemplateLibrary,
     reset,
   } = useSimulationStore();
 
-  const [activeTab, setActiveTab] = useState<'experiments' | 'favorites'>('experiments');
+  const [activeTab, setActiveTab] = useState<'experiments' | 'favorites' | 'templates'>('experiments');
+  const [deleteTplConfirm, setDeleteTplConfirm] = useState<string | null>(null);
 
   const loadExperiment = (config: ExperimentConfig) => {
     reset();
@@ -67,6 +74,43 @@ export const ExperimentPanel: React.FC = () => {
     }
   };
 
+  const loadTemplate = async (template: ExperimentTemplate) => {
+    try {
+      await api.templates.recordUse(template.id);
+    } catch {
+      // ignore error
+    }
+    reset();
+    setGrid(template.grid);
+    setBoundaryConditions(template.boundaryConditions);
+    setMaterialId(template.materialId);
+    setInitialHeatSources(template.initialHeatSources);
+    setTotalSteps(template.defaultSteps);
+    setTimeStep(template.timeStep);
+    setCurrentExperimentId(null);
+    const updated: ExperimentTemplate = {
+      ...template,
+      lastUsedAt: Date.now(),
+      useCount: template.useCount + 1,
+    };
+    updateTemplate(updated);
+  };
+
+  const deleteTemplate = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (deleteTplConfirm !== id) {
+      setDeleteTplConfirm(id);
+      return;
+    }
+    try {
+      await api.templates.delete(id);
+      removeTemplate(id);
+      setDeleteTplConfirm(null);
+    } catch (error) {
+      console.error('删除模板失败:', error);
+    }
+  };
+
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleString('zh-CN', {
       month: 'short',
@@ -86,23 +130,33 @@ export const ExperimentPanel: React.FC = () => {
         <div className="flex gap-1 mt-3 bg-slate-800 rounded-lg p-1">
           <button
             onClick={() => setActiveTab('experiments')}
-            className={`flex-1 py-1.5 px-3 rounded-md text-sm font-medium transition-all ${
+            className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-all ${
               activeTab === 'experiments'
                 ? 'bg-slate-700 text-white'
                 : 'text-slate-400 hover:text-slate-300'
             }`}
           >
-            实验记录 ({experiments.length})
+            实验 ({experiments.length})
           </button>
           <button
             onClick={() => setActiveTab('favorites')}
-            className={`flex-1 py-1.5 px-3 rounded-md text-sm font-medium transition-all ${
+            className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-all ${
               activeTab === 'favorites'
                 ? 'bg-slate-700 text-white'
                 : 'text-slate-400 hover:text-slate-300'
             }`}
           >
             收藏 ({favorites.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('templates')}
+            className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-all ${
+              activeTab === 'templates'
+                ? 'bg-slate-700 text-white'
+                : 'text-slate-400 hover:text-slate-300'
+            }`}
+          >
+            模板 ({templates.length})
           </button>
         </div>
       </div>
@@ -228,6 +282,103 @@ export const ExperimentPanel: React.FC = () => {
                   </div>
                 </div>
               ))
+            )}
+          </>
+        )}
+
+        {activeTab === 'templates' && (
+          <>
+            <div className="flex gap-2 mb-1">
+              <button
+                onClick={() => setShowSaveTemplateModal(true)}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-medium transition-all"
+              >
+                <Star className="w-3.5 h-3.5" />
+                保存当前为模板
+              </button>
+              <button
+                onClick={() => setShowTemplateLibrary(true)}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-lg text-xs font-medium transition-all"
+              >
+                <Library className="w-3.5 h-3.5" />
+                打开模板库
+              </button>
+            </div>
+
+            {templates.length === 0 ? (
+              <div className="text-center py-8 text-slate-500">
+                <Library className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">暂无模板</p>
+                <p className="text-xs mt-1">保存常用配置，一键快速套用</p>
+              </div>
+            ) : (
+              templates
+                .slice()
+                .sort((a, b) => b.lastUsedAt - a.lastUsedAt)
+                .map((tpl) => (
+                  <div
+                    key={tpl.id}
+                    className="bg-slate-800/50 rounded-xl p-3 border border-indigo-500/30 hover:border-indigo-500/60 transition-all cursor-pointer group"
+                    onClick={() => loadTemplate(tpl)}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <span className="inline-block px-2 py-0.5 bg-indigo-500/20 text-indigo-400 rounded text-[10px] font-medium">
+                        {tpl.category}
+                      </span>
+                      {deleteTplConfirm === tpl.id ? (
+                        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={(e) => deleteTemplate(tpl.id, e)}
+                            className="px-2 py-0.5 text-[10px] bg-red-500/20 text-red-400 rounded hover:bg-red-500/30"
+                          >
+                            删除
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeleteTplConfirm(null); }}
+                            className="px-2 py-0.5 text-[10px] bg-slate-700 text-slate-400 rounded hover:bg-slate-600"
+                          >
+                            取消
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => deleteTemplate(tpl.id, e)}
+                          className="p-1 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 rounded-lg text-red-400 transition-all"
+                          title="删除模板"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <h4 className="text-sm font-medium text-slate-200 truncate mb-1">
+                      {tpl.name}
+                    </h4>
+                    {tpl.description && (
+                      <p className="text-[11px] text-slate-500 italic line-clamp-1 mb-2">
+                        {tpl.description}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 text-[11px] text-slate-400 mb-2">
+                      <span>{tpl.grid.width}×{tpl.grid.height}</span>
+                      <span>·</span>
+                      <span>{tpl.materialId}</span>
+                      <span>·</span>
+                      <span>{tpl.initialHeatSources.length}热源</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                        <Clock className="w-3 h-3" />
+                        {formatDate(tpl.lastUsedAt)}
+                        <span className="px-1.5 py-0.5 bg-slate-700 rounded">
+                          用{tpl.useCount}次
+                        </span>
+                      </div>
+                      <span className="text-[10px] px-1.5 py-0.5 bg-emerald-900/30 text-emerald-400 rounded">
+                        {tpl.defaultSteps}步
+                      </span>
+                    </div>
+                  </div>
+                ))
             )}
           </>
         )}

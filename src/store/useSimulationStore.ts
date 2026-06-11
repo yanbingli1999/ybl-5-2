@@ -8,6 +8,7 @@ import type {
   TemperatureSnapshot,
   ExperimentResult,
   SimulationMode,
+  ExperimentTemplate,
 } from '@shared/types';
 
 interface SimulationState {
@@ -34,9 +35,12 @@ interface SimulationState {
   snapshots: TemperatureSnapshot[];
   experiments: ExperimentConfig[];
   favorites: ExperimentResult[];
+  templates: ExperimentTemplate[];
   
   currentExperimentId: string | null;
   hoveredCell: { x: number; y: number } | null;
+  showTemplateLibrary: boolean;
+  showSaveTemplateModal: boolean;
   
   setMode: (mode: SimulationMode) => void;
   setCurrentStep: (step: number) => void;
@@ -66,8 +70,14 @@ interface SimulationState {
   removeSnapshot: (id: string) => void;
   setExperiments: (experiments: ExperimentConfig[]) => void;
   setFavorites: (favorites: ExperimentResult[]) => void;
+  setTemplates: (templates: ExperimentTemplate[]) => void;
+  addTemplate: (template: ExperimentTemplate) => void;
+  updateTemplate: (template: ExperimentTemplate) => void;
+  removeTemplate: (id: string) => void;
   setCurrentExperimentId: (id: string | null) => void;
   setHoveredCell: (cell: { x: number; y: number } | null) => void;
+  setShowTemplateLibrary: (show: boolean) => void;
+  setShowSaveTemplateModal: (show: boolean) => void;
   
   reset: () => void;
 }
@@ -118,9 +128,12 @@ export const useSimulationStore = create<SimulationState>((set, get) => ({
   snapshots: [],
   experiments: [],
   favorites: [],
+  templates: [],
   
   currentExperimentId: null,
   hoveredCell: null,
+  showTemplateLibrary: false,
+  showSaveTemplateModal: false,
   
   setMode: (mode) => set({ mode }),
   setCurrentStep: (step) => set({ currentStep: step }),
@@ -179,8 +192,23 @@ export const useSimulationStore = create<SimulationState>((set, get) => ({
     })),
   setExperiments: (experiments) => set({ experiments }),
   setFavorites: (favorites) => set({ favorites }),
+  setTemplates: (templates) => set({ templates }),
+  addTemplate: (template) =>
+    set((state) => ({
+      templates: [...state.templates, template],
+    })),
+  updateTemplate: (template) =>
+    set((state) => ({
+      templates: state.templates.map(t => t.id === template.id ? template : t),
+    })),
+  removeTemplate: (id) =>
+    set((state) => ({
+      templates: state.templates.filter(t => t.id !== id),
+    })),
   setCurrentExperimentId: (id) => set({ currentExperimentId: id }),
   setHoveredCell: (cell) => set({ hoveredCell: cell }),
+  setShowTemplateLibrary: (show) => set({ showTemplateLibrary: show }),
+  setShowSaveTemplateModal: (show) => set({ showSaveTemplateModal: show }),
   
   reset: () =>
     set((state) => ({
